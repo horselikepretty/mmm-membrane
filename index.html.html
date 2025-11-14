@@ -1,0 +1,792 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>MMM CO₂ 분리 – 온도/조건 시뮬레이터 + 조건 해석 대시보드</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root{
+    --bg:#0b0c10; --panel:#15171c; --ink:#e6e6e6; --muted:#a7b0bb;
+    --accent:#22c55e; --accent2:#60a5fa; --warn:#f59e0b; --danger:#f97373;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    font-family:system-ui,Segoe UI,Apple SD Gothic Neo,Arial,sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+  }
+  header{
+    max-width:1100px;
+    margin:28px auto 0;
+    padding:0 16px;
+  }
+  h1{font-size:22px; margin:0 0 6px}
+  p.lead{color:var(--muted); margin:0 0 18px}
+  main{
+    max-width:1100px;
+    margin:0 auto;
+    padding:0 16px 40px;
+  }
+  .card{
+    background:var(--panel);
+    border-radius:16px;
+    padding:16px;
+    margin:14px 0;
+    box-shadow:0 6px 24px rgba(0,0,0,.22);
+  }
+  .row{display:grid; gap:14px}
+  @media(min-width:880px){
+    .row{grid-template-columns:1fr 1fr}
+  }
+  label.small{font-size:12px; color:var(--muted)}
+  .slider-wrap{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:12px;
+    margin:6px 0 4px;
+  }
+  .slider-col{
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  input[type="range"]{width:220px}
+  .badge{
+    display:inline-block;
+    padding:3px 8px;
+    border-radius:999px;
+    font-size:12px;
+    background:#1f2937;
+    color:#cbd5e1;
+    margin-left:4px;
+  }
+  .kv{
+    display:flex;
+    gap:12px;
+    flex-wrap:wrap;
+    margin-top:8px;
+  }
+  .kv div{
+    background:#101216;
+    padding:8px 10px;
+    border-radius:10px;
+    font-size:12px;
+    color:#cbd5e1;
+  }
+  canvas{
+    width:100%;
+    height:320px;
+    background:#0f1116;
+    border:1px solid #222631;
+    border-radius:12px;
+  }
+  .legend{
+    display:flex;
+    gap:10px;
+    align-items:center;
+    margin:8px 0 0 4px;
+    flex-wrap:wrap;
+    font-size:12px;
+  }
+  .chip{
+    width:12px;
+    height:12px;
+    border-radius:3px;
+    display:inline-block;
+  }
+  .hint{
+    font-size:12px;
+    color:#94a3b8;
+    margin-top:6px;
+  }
+  footer{
+    max-width:1100px;
+    margin:6px auto 30px;
+    padding:0 16px;
+    color:#94a3b8;
+    font-size:12px;
+  }
+  h3{margin-bottom:6px}
+
+  /* AI 패널 */
+  .ai-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:10px;
+    gap:8px;
+  }
+  .ai-pill{
+    font-size:11px;
+    padding:2px 8px;
+    border-radius:999px;
+    background:#1f2937;
+    color:#cbd5e1;
+    white-space:nowrap;
+  }
+  .ai-grid{
+    display:grid;
+    grid-template-columns:repeat(2, minmax(0,1fr));
+    gap:10px;
+  }
+  @media(max-width:720px){
+    .ai-grid{grid-template-columns:1fr;}
+  }
+  .ai-meter{
+    background:#050816;
+    border-radius:10px;
+    padding:8px 10px;
+    border:1px solid #1f2937;
+  }
+  .ai-meter-top{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    margin-bottom:4px;
+  }
+  .ai-meter-label{
+    font-size:11px;
+    color:#e5e7eb;
+  }
+  .ai-meter-value{
+    font-size:12px;
+    color:#cbd5f5;
+  }
+  .ai-meter-chip{
+    font-size:10px;
+    padding:1px 6px;
+    border-radius:999px;
+    border:1px solid #1f2937;
+    color:#e5e7eb;
+  }
+  .ai-meter-chip.good{border-color:#22c55e; color:#bbf7d0;}
+  .ai-meter-chip.mid{border-color:#f59e0b; color:#fed7aa;}
+  .ai-meter-chip.bad{border-color:#f97316; color:#fed7aa;}
+  .ai-meter-bar{
+    position:relative;
+    height:8px;
+    border-radius:999px;
+    background:#020617;
+    overflow:hidden;
+  }
+  .ai-meter-fill{
+    position:absolute;
+    inset:0;
+    width:40%;
+    border-radius:999px;
+    transition:width .2s ease-out, background .2s ease-out;
+  }
+  .ai-meter-fill.good{background:linear-gradient(90deg,#16a34a,#22c55e);}
+  .ai-meter-fill.mid{background:linear-gradient(90deg,#eab308,#f59e0b);}
+  .ai-meter-fill.bad{background:linear-gradient(90deg,#f97316,#ef4444);}
+
+  .ai-tags{
+    margin-top:8px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+  }
+  .ai-tag{
+    font-size:11px;
+    padding:3px 7px;
+    border-radius:999px;
+    background:#020617;
+    border:1px solid #1e293b;
+    color:#cbd5f5;
+  }
+  .ai-tag.good{border-color:#22c55e; color:#bbf7d0;}
+  .ai-tag.warn{border-color:#f59e0b; color:#fed7aa;}
+  .ai-tag.bad{border-color:#f97316; color:#fed7aa;}
+
+  .ai-note{
+    margin-top:6px;
+    font-size:11px;
+    color:#9ca3af;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>MMM CO₂ 분리 – 온도/조건 시뮬레이터</h1>
+  <p class="lead">
+    온도와 막 두께를 바꾸면서 <b>선택도</b>, <b>투과도</b>, <b>CO₂ 플럭스</b>, <b>CO₂ 몰유량</b>의 변화를
+    직관적으로 확인하고, 아래 조건 해석 대시보드에서 공정 관점 평가를 한눈에 볼 수 있습니다.
+  </p>
+</header>
+
+<main>
+  <!-- 상단 컨트롤 -->
+  <div class="card">
+    <div class="slider-wrap">
+      <div class="slider-col">
+        <label for="temp"><b>막 온도 (°C)</b></label>
+        <input id="temp" type="range" min="100" max="200" step="2" value="140" oninput="updateAll()">
+        <span id="tempVal" class="badge">140 °C</span>
+      </div>
+      <div class="slider-col">
+        <label for="thick"><b>막 두께 (nm)</b></label>
+        <input id="thick" type="range" min="50" max="300" step="10" value="100" oninput="updateAll()">
+        <span id="thickVal" class="badge">100 nm</span>
+      </div>
+      <label class="small">
+        기준 조건 (개념값): y<sub>CO₂,feed</sub> = 0.15, P<sub>feed</sub> = 2 bar, P<sub>perm</sub> = 1 bar
+      </label>
+    </div>
+    <div class="kv">
+      <div><span style="color:#22c55e;">●</span> α<sub>CO₂/N₂</sub>(T): <b id="kvAlpha">–</b></div>
+      <div><span style="color:#60a5fa;">●</span> P<sub>CO₂</sub>(T): <b id="kvPco2">–</b> GPU</div>
+      <div><span style="color:#22c55e;">●</span> J<sub>CO₂</sub>(T,l): <b id="kvFlux">–</b> mol·m⁻²·s⁻¹</div>
+      <div><span style="color:#f59e0b;">●</span> ṅ<sub>CO₂,perm</sub>(T,l): <b id="kvFlow">–</b> mol·s⁻¹</div>
+    </div>
+  </div>
+
+  <!-- 조건 해석 AI 시각 대시보드 -->
+  <div class="card">
+    <div class="ai-header">
+      <h3 style="margin:0;">조건 해석 대시보드</h3>
+      <span class="ai-pill">ChatGPT 기반 규칙형 해석 · 실시간 업데이트</span>
+    </div>
+    <div class="ai-grid">
+      <!-- 선택도 -->
+      <div class="ai-meter" id="meter-alpha">
+        <div class="ai-meter-top">
+          <span class="ai-meter-label">선택도 α<sub>CO₂/N₂</sub></span>
+          <span class="ai-meter-value" id="meter-alpha-val">–</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:#6b7280;margin-bottom:2px;">
+          <span>저선택</span><span>고선택</span>
+        </div>
+        <div class="ai-meter-bar">
+          <div class="ai-meter-fill" id="meter-alpha-fill"></div>
+        </div>
+        <div style="margin-top:4px;">
+          <span class="ai-meter-chip" id="meter-alpha-chip">–</span>
+        </div>
+      </div>
+      <!-- 플럭스 -->
+      <div class="ai-meter" id="meter-flux">
+        <div class="ai-meter-top">
+          <span class="ai-meter-label">CO₂ 플럭스 J</span>
+          <span class="ai-meter-value" id="meter-flux-val">–</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:#6b7280;margin-bottom:2px;">
+          <span>저플럭스</span><span>고플럭스</span>
+        </div>
+        <div class="ai-meter-bar">
+          <div class="ai-meter-fill" id="meter-flux-fill"></div>
+        </div>
+        <div style="margin-top:4px;">
+          <span class="ai-meter-chip" id="meter-flux-chip">–</span>
+        </div>
+      </div>
+      <!-- 온도 -->
+      <div class="ai-meter" id="meter-temp">
+        <div class="ai-meter-top">
+          <span class="ai-meter-label">운전 온도</span>
+          <span class="ai-meter-value" id="meter-temp-val">–</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:#6b7280;margin-bottom:2px;">
+          <span>저온</span><span>고온</span>
+        </div>
+        <div class="ai-meter-bar">
+          <div class="ai-meter-fill" id="meter-temp-fill"></div>
+        </div>
+        <div style="margin-top:4px;">
+          <span class="ai-meter-chip" id="meter-temp-chip">–</span>
+        </div>
+      </div>
+      <!-- 막 두께 -->
+      <div class="ai-meter" id="meter-thick">
+        <div class="ai-meter-top">
+          <span class="ai-meter-label">막 두께</span>
+          <span class="ai-meter-value" id="meter-thick-val">–</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:#6b7280;margin-bottom:2px;">
+          <span>얇은 막</span><span>두꺼운 막</span>
+        </div>
+        <div class="ai-meter-bar">
+          <div class="ai-meter-fill" id="meter-thick-fill"></div>
+        </div>
+        <div style="margin-top:4px;">
+          <span class="ai-meter-chip" id="meter-thick-chip">–</span>
+        </div>
+      </div>
+    </div>
+    <div id="aiTags" class="ai-tags"></div>
+    <div id="aiNote" class="ai-note">
+      슬라이더를 움직이면 각 지표의 수준과 공정 관점 태그가 자동으로 갱신됩니다.
+    </div>
+  </div>
+
+  <!-- 두 개의 차트를 한 카드(row) 안에 배치 -->
+  <div class="card row">
+    <!-- 그래프 1: 선택도 & 투과도 -->
+    <section>
+      <h3>1) 선택도 & CO₂ 투과도 vs 온도</h3>
+      <div class="legend">
+        <span class="chip" style="background:var(--accent)"></span>
+        <span>왼쪽 y축 – 선택도 α<sub>CO₂/N₂</sub> (무차원)</span>
+        <span class="chip" style="background:var(--accent2)"></span>
+        <span>오른쪽 y축 – P<sub>CO₂</sub>(T) (GPU)</span>
+      </div>
+      <canvas id="selCanvas" width="520" height="320" aria-label="Selectivity chart"></canvas>
+      <p class="hint">
+        α(T), P<sub>CO₂</sub>(T)는 논문 기반 아레니우스 모델을 사용했습니다.
+        (T<sub>ref</sub> = 35 °C 기준)
+      </p>
+    </section>
+
+    <!-- 그래프 2: 플럭스 & 몰유량 (하나의 차트, 두 y축) -->
+    <section>
+      <h3>2) CO₂ 플럭스 & 몰유량 vs 온도</h3>
+      <div class="legend">
+        <span class="chip" style="background:var(--accent)"></span>
+        <span>왼쪽 y축 – J<sub>CO₂</sub>(T,l) (mol·m⁻²·s⁻¹)</span>
+        <span class="chip" style="background:var(--warn)"></span>
+        <span>오른쪽 y축 – ṅ<sub>CO₂,perm</sub>(T,l) (mol·s⁻¹, A = 3000 m²)</span>
+      </div>
+      <canvas id="fluxCanvas" width="520" height="320" aria-label="Flux & flow chart"></canvas>
+      <p class="hint">
+        J<sub>CO₂</sub> = P<sub>CO₂</sub>(T)Δp<sub>CO₂</sub> / l<sub>m</sub>, &nbsp;
+        ṅ<sub>CO₂,perm</sub> = J<sub>CO₂</sub>A<sub>m</sub>.<br>
+        오른쪽 y축 스케일을 조정해 J와 ṅ 곡선이 겹치지 않도록 했습니다.
+      </p>
+    </section>
+  </div>
+</main>
+
+<footer>
+  상단 슬라이더로 조건을 조정하면 두 차트, 요약 값, 그리고 조건 해석 대시보드가 함께 갱신됩니다.
+  (수치는 스케일 조정을 포함한 예시값이며, 공정 설계 시에는 실제 실험·문헌 데이터를 대입해 사용할 수 있습니다.)
+</footer>
+
+<script>
+// ---------------- 상수 & 모델 ----------------
+const Rg = 8.314;          // J/mol·K
+const TrefC = 35.0;        // 기준 온도 35°C
+const TrefK = TrefC + 273.15;
+
+// 선택도: α(T) = α0 * exp[-ΔEa/R (1/T - 1/Tref)]
+const alpha_ref = 93.0;     // α0 at 35 °C
+const dEa_kJ = -10.0;       // ΔEa = Ea_CO2 - Ea_N2 < 0
+const dEa = dEa_kJ * 1000.0;
+
+// 투과도: Pi(T) = Pi_ref * exp[-Ea_i/R (1/T - 1/Tref)]
+const Pco2_ref = 200.0;          // GPU @ 35 °C
+const Pn2_ref  = Pco2_ref / alpha_ref;
+
+const Ea_CO2 = 5000.0;           // 5 kJ/mol
+const Ea_N2  = Ea_CO2 - dEa;     // Ea_N2 = 15 kJ/mol (둘 다 >0, Ea_N2 > Ea_CO2)
+
+// 압력차 (bar)
+const yCO2_feed = 0.15;
+const yN2_feed  = 1.0 - yCO2_feed;
+const P_feed = 2.0;              // bar
+const P_perm = 1.0;              // bar
+const deltaP_total = P_feed - P_perm;
+const deltaP_CO2 = deltaP_total * yCO2_feed;
+const deltaP_N2  = deltaP_total * yN2_feed;
+
+// 환산 계수 & 막 면적
+const nm_to_m = 1e-9;
+const convK   = 3.9e-11;
+const area_m2 = 3000.0;
+
+function toK(Tc){ return Tc + 273.15; }
+
+function permCO2(Tk){
+  return Pco2_ref * Math.exp( -Ea_CO2/Rg * (1.0/Tk - 1.0/TrefK) );
+}
+function permN2(Tk){
+  return Pn2_ref  * Math.exp( -Ea_N2 /Rg * (1.0/Tk - 1.0/TrefK) );
+}
+function alphaCO2N2(Tk){
+  return alpha_ref * Math.exp( -dEa/Rg * (1.0/Tk - 1.0/TrefK) );
+}
+
+function fluxCO2(Tk, lnm){
+  const P = permCO2(Tk);
+  const l_m = lnm * nm_to_m;
+  return convK * P * deltaP_CO2 / l_m;
+}
+function flowCO2(Tk, lnm){
+  return fluxCO2(Tk, lnm) * area_m2;
+}
+
+// ---------------- 캔버스 유틸 ----------------
+function line(ctx, pts, color, width=2, dash=[]){
+  ctx.save();
+  ctx.setLineDash(dash);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.beginPath();
+  for(let i=0;i<pts.length;i++){
+    const [x,y] = pts[i];
+    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+function text(ctx, s, x, y, color="#cbd5e1", size=12, align="left"){
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.font = `${size}px system-ui,Segoe UI,Arial`;
+  ctx.textAlign = align;
+  ctx.fillText(s, x, y);
+  ctx.restore();
+}
+function axes(ctx, x, y, w, h, xmin,xmax, ymin,ymax, xticks=5, yticks=5, grid=true, yColor="#8fa1b3"){
+  ctx.save();
+  if(grid){
+    ctx.strokeStyle="#1f2430"; ctx.lineWidth=1;
+    for(let i=0;i<=xticks;i++){
+      const gx = x + i*w/xticks;
+      ctx.beginPath(); ctx.moveTo(gx,y); ctx.lineTo(gx,y+h); ctx.stroke();
+    }
+    for(let j=0;j<=yticks;j++){
+      const gy = y + j*h/yticks;
+      ctx.beginPath(); ctx.moveTo(x,gy); ctx.lineTo(x+w,gy); ctx.stroke();
+    }
+  }
+  ctx.strokeStyle="#2a2f39"; ctx.lineWidth=1.2;
+  ctx.strokeRect(x,y,w,h);
+
+  ctx.fillStyle="#8fa1b3"; ctx.font="11px system-ui,Segoe UI,Arial";
+  for(let i=0;i<=xticks;i++){
+    const xv = xmin + i*(xmax-xmin)/xticks;
+    const gx = x + i*w/xticks;
+    ctx.fillText(String(Math.round(xv)), gx, y+h+14);
+  }
+  ctx.fillStyle = yColor;
+  for(let j=0;j<=yticks;j++){
+    const yv = ymin + j*(ymax-ymin)/yticks;
+    const gy = y + h - j*h/yticks;
+    const digits = (ymax-ymin) < 1 ? 3 : 2;
+    ctx.fillText(String(yv.toFixed(digits)), x-40, gy+4);
+  }
+  ctx.restore();
+}
+function scaleX(x, xmin,xmax, X,W){
+  return X + (x - xmin)/(xmax-xmin)*W;
+}
+function scaleY(y, ymin,ymax, Y,H){
+  return Y + (1 - (y - ymin)/(ymax-ymin))*H;
+}
+
+// ---------------- 그래프 1: α & Pco2 vs T ----------------
+function drawSelectivityPlot(Tc_now){
+  const c = document.getElementById("selCanvas");
+  const ctx = c.getContext("2d");
+  ctx.clearRect(0,0,c.width,c.height);
+
+  const padL=52, padR=52, padT=16, padB=28;
+  const X=padL, Y=padT, W=c.width-padL-padR, H=c.height-padT-padB;
+
+  const Tmin=100, Tmax=200;
+  const yminAlpha=20, ymaxAlpha=100;
+  const yminP=200,  ymaxP=450;
+
+  // 왼쪽 y축 (선택도)
+  axes(ctx, X, Y, W, H, Tmin, Tmax, yminAlpha, ymaxAlpha, 5, 5, true, "#22c55e");
+  text(ctx, "Temperature (°C)", X+W/2, Y+H+24, "#aab6c5", 12, "center");
+  text(ctx, "α_CO₂/N₂ (무차원)", 8, Y-6, "#22c55e", 12, "left");
+
+  // 오른쪽 y축 (P_CO2)
+  ctx.save();
+  ctx.fillStyle="#60a5fa"; ctx.font="11px system-ui,Segoe UI,Arial";
+  for(let j=0;j<=5;j++){
+    const yv = yminP + j*(ymaxP-yminP)/5;
+    const gy = Y + H - j*H/5;
+    ctx.fillText(String(Math.round(yv)), X+W+8, gy+4);
+  }
+  text(ctx, "P_CO₂ (GPU)", X+W+40, Y-6, "#60a5fa", 12, "center");
+  ctx.restore();
+
+  const ptsAlpha=[];
+  const ptsP=[];
+  for(let T=Tmin; T<=Tmax; T+=2){
+    const Tk = toK(T);
+    const a = alphaCO2N2(Tk);
+    const P = permCO2(Tk);
+    ptsAlpha.push([
+      scaleX(T, Tmin,Tmax, X,W),
+      scaleY(a, yminAlpha,ymaxAlpha, Y,H)
+    ]);
+    ptsP.push([
+      scaleX(T, Tmin,Tmax, X,W),
+      scaleY(P, yminP,ymaxP, Y,H)
+    ]);
+  }
+  line(ctx, ptsAlpha, "#22c55e", 2);
+  line(ctx, ptsP, "#60a5fa", 2, [6,5]);
+
+  const cx = scaleX(Tc_now, Tmin,Tmax, X,W);
+  ctx.save();
+  ctx.strokeStyle="#94a3b8"; ctx.setLineDash([4,4]);
+  ctx.beginPath(); ctx.moveTo(cx,Y); ctx.lineTo(cx,Y+H); ctx.stroke();
+  ctx.restore();
+
+  const Tk_now = toK(Tc_now);
+  const a_now = alphaCO2N2(Tk_now);
+  const P_now = permCO2(Tk_now);
+
+  const ya = scaleY(a_now, yminAlpha,ymaxAlpha, Y,H);
+  const yp = scaleY(P_now, yminP,ymaxP, Y,H);
+
+  ctx.fillStyle="#22c55e";
+  ctx.beginPath(); ctx.arc(cx, ya, 4, 0, Math.PI*2); ctx.fill();
+  text(ctx, a_now.toFixed(1), cx+8, ya-6, "#22c55e");
+
+  ctx.fillStyle="#60a5fa";
+  ctx.beginPath(); ctx.arc(cx, yp, 4, 0, Math.PI*2); ctx.fill();
+  text(ctx, P_now.toFixed(0), cx+8, yp+14, "#60a5fa");
+}
+
+// ---------------- 그래프 2: 플럭스 & 몰유량 (공유 차트) ----------------
+function drawFluxPlotCombined(Tc_now, lnm_now){
+  const c = document.getElementById("fluxCanvas");
+  const ctx = c.getContext("2d");
+  ctx.clearRect(0,0,c.width,c.height);
+
+  const padL=60, padR=60, padT=16, padB=28;
+  const X=padL, Y=padT, W=c.width-padL-padR, H=c.height-padT-padB;
+
+  const Tmin=100, Tmax=200;
+
+  // 전체 두께/온도 범위에서 플럭스/몰유량 범위 계산
+  const lmin = 50, lmax = 300;
+  let Jmin=Infinity, Jmax=-Infinity, Fmin=Infinity, Fmax=-Infinity;
+  for(let l of [lmin, lmax]){
+    for(let T=Tmin; T<=Tmax; T+=10){
+      const Tk = toK(T);
+      const J = fluxCO2(Tk, l);
+      const F = flowCO2(Tk, l);
+      Jmin = Math.min(Jmin, J);
+      Jmax = Math.max(Jmax, J);
+      Fmin = Math.min(Fmin, F);
+      Fmax = Math.max(Fmax, F);
+    }
+  }
+  const yminJ = 0.0;
+  const ymaxJ = Math.max( Math.ceil((Jmax*1.2)*1000)/1000, 0.01 );
+  const yminF = 0.0;
+  // 오른쪽 축 스케일을 더 크게 잡아서 두 곡선이 겹치지 않도록 함
+  const ymaxF = Math.max( Math.ceil(Fmax*2.0), 5.0 );
+
+  // 왼쪽 y축 (J_CO2)
+  axes(ctx, X,Y,W,H, Tmin,Tmax, yminJ,ymaxJ, 5,5, true, "#22c55e");
+  text(ctx, "Temperature (°C)", X+W/2, Y+H+24, "#aab6c5", 12, "center");
+  text(ctx, "J_CO₂ (mol·m⁻²·s⁻¹)", 8, Y-6, "#22c55e", 12, "left");
+
+  // 오른쪽 y축 (몰유량)
+  ctx.save();
+  ctx.fillStyle="#f59e0b"; ctx.font="11px system-ui,Segoe UI,Arial";
+  for(let j=0;j<=5;j++){
+    const yv = yminF + j*(ymaxF-yminF)/5;
+    const gy = Y + H - j*H/5;
+    ctx.fillText(String(Math.round(yv)), X+W+8, gy+4);
+  }
+  text(ctx, "ṅ_CO₂,perm (mol·s⁻¹)", X+W+48, Y-6, "#f59e0b", 12, "center");
+  ctx.restore();
+
+  const ptsJ=[], ptsF=[];
+  for(let T=Tmin; T<=Tmax; T+=2){
+    const Tk = toK(T);
+    const J = fluxCO2(Tk, lnm_now);
+    const F = flowCO2(Tk, lnm_now);
+    ptsJ.push([
+      scaleX(T, Tmin,Tmax, X,W),
+      scaleY(J, yminJ,ymaxJ, Y,H)
+    ]);
+    ptsF.push([
+      scaleX(T, Tmin,Tmax, X,W),
+      scaleY(F, yminF,ymaxF, Y,H)
+    ]);
+  }
+
+  // J: 초록 실선, ṅ: 주황 점선
+  line(ctx, ptsJ, "#22c55e", 2);
+  line(ctx, ptsF, "#f59e0b", 2, [6,5]);
+
+  const cx = scaleX(Tc_now, Tmin,Tmax, X,W);
+  ctx.save(); ctx.strokeStyle="#94a3b8"; ctx.setLineDash([4,4]);
+  ctx.beginPath(); ctx.moveTo(cx,Y); ctx.lineTo(cx,Y+H); ctx.stroke(); ctx.restore();
+
+  const Tk_now = toK(Tc_now);
+  const J_now = fluxCO2(Tk_now, lnm_now);
+  const F_now = flowCO2(Tk_now, lnm_now);
+
+  const yJ = scaleY(J_now, yminJ,ymaxJ, Y,H);
+  const yF = scaleY(F_now, yminF,ymaxF, Y,H);
+
+  ctx.fillStyle="#22c55e";
+  ctx.beginPath(); ctx.arc(cx, yJ, 4, 0, Math.PI*2); ctx.fill();
+  text(ctx, J_now.toFixed(3), cx+8, yJ-6, "#22c55e");
+
+  ctx.fillStyle="#f59e0b";
+  ctx.beginPath(); ctx.arc(cx, yF, 4, 0, Math.PI*2); ctx.fill();
+  text(ctx, F_now.toFixed(1), cx+8, yF-6, "#f59e0b");
+}
+
+// ---------------- 조건 해석 시각화 로직 ----------------
+function clamp01(x){ return Math.max(0, Math.min(1, x)); }
+
+function classifyLevel(v, low, mid, high){
+  if(v < low) return "bad";
+  if(v < mid) return "mid";
+  if(v < high) return "good";
+  return "good";
+}
+
+function updateAIMeters(Tc, lnm, alpha, J, F){
+  // 선택도 범위 정규화 (대략 40~100 사이로 가정)
+  const aNorm = clamp01((alpha - 40) / (100 - 40));
+  const aLevel = classifyLevel(alpha, 50, 80, 90);
+
+  const aFill = document.getElementById("meter-alpha-fill");
+  const aVal  = document.getElementById("meter-alpha-val");
+  const aChip = document.getElementById("meter-alpha-chip");
+  if(aFill){
+    aFill.style.width = (10 + 90*aNorm) + "%";
+    aFill.className = "ai-meter-fill " + aLevel;
+  }
+  if(aVal) aVal.textContent = alpha.toFixed(1);
+  if(aChip){
+    aChip.className = "ai-meter-chip " + aLevel;
+    aChip.textContent =
+      aLevel === "good" ? "고선택 영역" :
+      aLevel === "mid"  ? "중간 선택도" :
+                          "저선택 – 후단 정제 필요";
+  }
+
+  // 플럭스 범위 정규화 (0.002~0.012 정도 스케일)
+  const Jlow=0.002, Jhigh=0.012;
+  const jNorm = clamp01((J - Jlow)/(Jhigh-Jlow));
+  const jLevel = classifyLevel(J, 0.004, 0.01, 0.013);
+
+  const jFill = document.getElementById("meter-flux-fill");
+  const jVal  = document.getElementById("meter-flux-val");
+  const jChip = document.getElementById("meter-flux-chip");
+  if(jFill){
+    jFill.style.width = (10 + 90*jNorm) + "%";
+    jFill.className = "ai-meter-fill " + jLevel;
+  }
+  if(jVal) jVal.textContent = J.toFixed(3);
+  if(jChip){
+    jChip.className = "ai-meter-chip " + jLevel;
+    jChip.textContent =
+      jLevel === "good" ? "고플럭스 – 대량 처리" :
+      jLevel === "mid"  ? "중간 플럭스 – 파일럿 적합" :
+                          "저플럭스 – 막 면적 증가 필요";
+  }
+
+  // 온도 (100~200)
+  const tNorm = clamp01((Tc - 100)/(200-100));
+  const tLevel = Tc < 120 ? "bad" : (Tc <= 160 ? "mid" : "good");
+
+  const tFill = document.getElementById("meter-temp-fill");
+  const tVal  = document.getElementById("meter-temp-val");
+  const tChip = document.getElementById("meter-temp-chip");
+  if(tFill){
+    tFill.style.width = (10 + 90*tNorm) + "%";
+    tFill.className = "ai-meter-fill " + tLevel;
+  }
+  if(tVal) tVal.textContent = Tc.toFixed(0) + " °C";
+  if(tChip){
+    tChip.className = "ai-meter-chip " + tLevel;
+    tChip.textContent =
+      tLevel === "good" ? "고온 – 투과도↑, 에너지 주의" :
+      tLevel === "mid"  ? "중간 온도 – 균형 영역" :
+                          "저온 – 에너지↓, 플럭스 제한";
+  }
+
+  // 막 두께 (50~300) – 값이 클수록 두꺼운 막
+  const Lmin=50, Lmax=300;
+  const lNorm = clamp01((lnm - Lmin)/(Lmax-Lmin));
+  const lLevel = lnm < 90 ? "good" : (lnm <= 180 ? "mid" : "bad");
+
+  const lFill = document.getElementById("meter-thick-fill");
+  const lVal  = document.getElementById("meter-thick-val");
+  const lChip = document.getElementById("meter-thick-chip");
+  if(lFill){
+    lFill.style.width = (10 + 90*lNorm) + "%";
+    lFill.className = "ai-meter-fill " + (lLevel === "good" ? "good" : (lLevel === "mid" ? "mid" : "bad"));
+  }
+  if(lVal) lVal.textContent = lnm.toFixed(0) + " nm";
+  if(lChip){
+    lChip.className = "ai-meter-chip " + lLevel;
+    lChip.textContent =
+      lLevel === "good" ? "얇은 막 – 플럭스 유리" :
+      lLevel === "mid"  ? "중간 두께 – 타협 영역" :
+                          "두꺼운 막 – 내구성↑, 플럭스↓";
+  }
+
+  // 태그 요약
+  const tagBox = document.getElementById("aiTags");
+  if(tagBox){
+    tagBox.innerHTML = "";
+    // 선택도/플럭스 조합 태그
+    if(aLevel === "good" && jLevel === "good"){
+      addTag(tagBox, "sweet spot – 고선택·고플럭스", "good");
+    }else if(aLevel === "good" && jLevel !== "good"){
+      addTag(tagBox, "고선택 – 고순도 회수 유리", "good");
+      addTag(tagBox, "처리량 향상 여지 있음", "warn");
+    }else if(aLevel !== "good" && jLevel === "good"){
+      addTag(tagBox, "고플럭스 – 대량 처리 유리", "good");
+      addTag(tagBox, "선택도 보완 위한 후단 공정 필요", "warn");
+    }else{
+      addTag(tagBox, "중간 성능 – 파일럿/경향 확인용", "warn");
+    }
+
+    // 온도/두께 태그
+    if(tLevel === "good"){
+      addTag(tagBox, "고온 운전 – 열안정성 검토", "warn");
+    }else if(tLevel === "bad"){
+      addTag(tagBox, "저온 – 에너지 유리, 성능 제한", "warn");
+    }
+
+    if(lLevel === "good"){
+      addTag(tagBox, "얇은 막 – 기계적 강도 주의", "warn");
+    }else if(lLevel === "bad"){
+      addTag(tagBox, "두꺼운 막 – 보수적 설계", "warn");
+    }
+  }
+}
+
+function addTag(container, text, cls){
+  const span = document.createElement("span");
+  span.className = "ai-tag " + (cls || "");
+  span.textContent = text;
+  container.appendChild(span);
+}
+
+// ---------------- 전체 업데이트 ----------------
+function updateAll(){
+  const Tc = Number(document.getElementById("temp").value);
+  const lnm = Number(document.getElementById("thick").value);
+
+  document.getElementById("tempVal").textContent  = Tc + " °C";
+  document.getElementById("thickVal").textContent = lnm + " nm";
+
+  const Tk = toK(Tc);
+  const a = alphaCO2N2(Tk);
+  const P = permCO2(Tk);
+  const Jc = fluxCO2(Tk, lnm);
+  const F  = flowCO2(Tk, lnm);
+
+  document.getElementById("kvAlpha").textContent = a.toFixed(1);
+  document.getElementById("kvPco2").textContent  = P.toFixed(0);
+  document.getElementById("kvFlux").textContent  = Jc.toFixed(3);
+  document.getElementById("kvFlow").textContent  = F.toFixed(1);
+
+  drawSelectivityPlot(Tc);
+  drawFluxPlotCombined(Tc, lnm);
+  updateAIMeters(Tc, lnm, a, Jc, F);
+}
+
+window.addEventListener('load', updateAll);
+</script>
+</body>
+</html>
